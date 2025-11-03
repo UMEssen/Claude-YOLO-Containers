@@ -1,0 +1,2 @@
+Implement the software that is described in /plans.
+Make sure you stick to the implementation plan. You are running in a endless loop. You can pass information to the next iteration by writing to e.g. /workspace/loop_data.json and/or use a CLAUDE.md file. If no CLAUDE.md file exists, start with creating one.
