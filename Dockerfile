@@ -9,11 +9,6 @@ RUN apt-get update && apt-get install -y \
   && apt-get update && apt-get install -y nodejs \
   && rm -rf /var/lib/apt/lists/*
 
-# create non-root user and directories
-#RUN useradd --create-home --shell /bin/bash claudeuser \
-#  && mkdir /workspace /logs \
-#  && chown claudeuser:claudeuser /workspace /logs
-
 RUN mkdir /workspace /logs
 
 WORKDIR /workspace 
