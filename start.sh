@@ -1,0 +1,79 @@
+#!/usr/bin/env sh
+# start.sh — handles authentication then runs loop
+
+set -eu
+
+# Variables
+ITERATION_COUNT=50
+PROMPT_FILE="${1:-/workspace/prompt.md}"
+LOG_FILE="/logs/loop.log"
+
+# Trap for both interrupt and normal exit
+trap 'cleanup; printf "\n[Interrupted]\n" >&2; exit 130' INT
+trap 'cleanup' EXIT
+
+cleanup() {
+  # Add any cleanup logic here if needed
+  :
+}
+
+echo "Starting loop. Logs will be written to $LOG_FILE"
+# Empty the log file if it exists
+echo -n > "$LOG_FILE"
+
+run_once() {
+  # Run claude and tee output to log file and pipe to jq
+  cat "$PROMPT_FILE" \
+  | claude -p \
+    --verbose \
+    --dangerously-skip-permissions \
+    --include-partial-messages \
+    --output-format=stream-json \
+  | tee -a "$LOG_FILE" \
+  | jq -rj --unbuffered '
+      # Simplest possible approach to filter and format the stream
+      # Text blocks
+      if (.type=="stream_event" and .event.type=="content_block_delta" and .event.delta.type=="text_delta") then
+        # Handle actual text content
+        (.event.delta.text | gsub("\\r?\\n"; "\n"))
+
+      # New message block for spacing
+      elif (.type=="stream_event" and .event.type=="message_start") then
+        "\n\n💬 "
+
+      # Tool start
+      elif (.type=="stream_event" and .event.type=="content_block_start" and .event.content_block.type=="tool_use") then
+        "\n\n\u001b[33m🛠  Tool: " + .event.content_block.name + " \u001b[0m"
+
+      # Skip all other event types
+      else
+        empty
+      end
+    '
+  printf '\n\n'
+}
+
+i=1
+while [ "$i" -le $ITERATION_COUNT ]; do
+  printf '\n\n'
+  printf '%0.s▄' $(seq 1 80)
+  printf '\n\n\n\n'
+  (figlet -f doh "$i" | sed -E '/^[[:space:]]*$/d' | sed 's/^/    /') || true
+  printf '\n'
+
+  # Add JSON formatted log header with iteration number
+  echo "{\"type\":\"loop_start_marker\", \"message\":\"==================== New Claude Run $i - $(date) ====================\"}" >> "$LOG_FILE"
+
+  run_once
+
+  i=$((i+1))
+done
+
+echo "{\"type\":\"loop_all_completed\", \"message\":\"==================== Loop complete ====================\"}" >> "$LOG_FILE"
+
+# Done message
+printf '\n\n'
+printf '%0.s▄' $(seq 1 80)
+printf '\n\n\n'
+(printf '\033[32m'; figlet -f doh "Done" | sed -E '/^[[:space:]]*$/d' | sed 's/^/  /'; printf '\033[0m') || true
+printf '\n\n'
